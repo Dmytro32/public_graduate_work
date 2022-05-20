@@ -1,0 +1,88 @@
+- name: create sql instance with database and ssl connection
+  hosts: localhost
+  vars: 
+    gcp_project: ansible-349422
+    gcp_cred_kind: serviceaccount
+    gcp_cred_file: ./key.json 
+    resource_name: dmytro.bidnyk.itis.2018  
+    gcp_dat_base: my_databe2
+    gcp_pass: 1
+  tasks:  
+  - name: create a service
+    google.cloud.gcp_serviceusage_service:
+      name: sqladmin.googleapis.com
+      project: "{{ gcp_project }}"
+      auth_kind: "{{ gcp_cred_kind }}"
+      service_account_file: "{{gcp_cred_file}}"
+      state: present
+  - name: pause
+    pause:
+      minutes: 1   
+  - name: create a instance
+    google.cloud.gcp_sql_instance:
+      name: "dmytro-ansible-{{ ansible_date_time.day }}-{{ ansible_date_time.hour }}-{{ ansible_date_time.minute }}"
+      settings:
+        ip_configuration:
+          authorized_networks:
+            - expiration_time : 2022-12-12T00:00:00.094Z
+              name: my_vm_ip
+              value: 0.0.0.0/0   
+          ipv4_enabled: true 
+      #   require_ssl: true          
+        tier: db-n1-standard-1
+      region: us-central1
+      project: "{{ gcp_project }}"
+      auth_kind: "{{ gcp_cred_kind }}"
+      database_version: MYSQL_5_7
+      service_account_file: "{{ gcp_cred_file }}"
+      state: present
+    register: instance
+  - name: create a database
+    google.cloud.gcp_sql_database:
+      name: "{{ gcp_dat_base }}"
+      charset: utf8
+      instance: "{{ instance.name }}"
+      project: "{{ gcp_project }}"
+      auth_kind: "{{ gcp_cred_kind }}"
+      service_account_file: "{{gcp_cred_file}}"
+      state: present
+  - name: create a user
+    google.cloud.gcp_sql_user:
+      name: "{{resource_name}}"
+      host: localhost
+      password: "{{ gcp_pass }}"
+      instance: "{{ instance }}"
+      project: "{{ gcp_project }}"
+      auth_kind: "{{ gcp_cred_kind }}"
+      service_account_file: "{{gcp_cred_file}}"
+      state: present   
+ #  - name: create a SSL cert
+  #  google.cloud.gcp_sql_ssl_cert:
+   #   common_name: "{{resource_name}}"
+    #  instance: "{{ instance }}"
+   #   project: "{{ gcp_project }}"
+    #  auth_kind: "{{ gcp_cred_kind }}"
+     # service_account_file: "{{gcp_cred_file}}"
+      #sha1_fingerprint: "7D674F1EE7708FCFD542DA7F8AA4CD65AFA4BE43"
+     # state: present      
+  - name: push data
+    command: mysql -u "{{ resource_name }}" -p"{{ gcp_pass }}" -h "{{ instance.id,ip.address }}" -p"{{ gcp_data_pass }}" -D "{{ gcp_dat_base }}" <./data.sql     
+      
+ 
+  #   register: ssl
+#   - name: make sure SSL certificate is existing and secured
+#    copy:
+   #    src:    '{{ item.src }}'
+   #    path:   '{{ item.path }}'
+   #    owner:  root
+   #    group:  root
+  #     mode:   '{{ item.mode }}'
+ #    no_log: true
+  #   with_items:
+   #    - src:  '{{ ssl.cert }}'
+     #    path: ./cert.pem
+     #    mode: '0644'
+     #  - src:  '{{ ssl.sha1Fingerprint }}'
+     #    path: ./key.pem
+     #    mode: '0600'    
+    
